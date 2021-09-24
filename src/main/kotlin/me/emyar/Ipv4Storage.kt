@@ -5,7 +5,7 @@ class Ipv4Storage {
     private val storedIps = Array<Array<Array<BooleanArray?>?>?>(256) { null }
 
     fun saveIp(ipString: String) {
-        val ipBytesStrings = ipString.split(".")
+        val ipBytesStrings = ipString.splitIp()
         storedIps.saveByte(ipBytesStrings[0])
             .saveByte(ipBytesStrings[1])
             .saveByte(ipBytesStrings[2])
@@ -32,6 +32,27 @@ class Ipv4Storage {
                     }
                     ?: emptySequence()
             }
+
+    private fun String.splitIp(): Array<String> {
+        val result = Array(4) { "" }
+        var currentArrayElementIndex = 0
+        var byteStartPosition = 0
+
+        var i = 1 // every byte in IPv4 is not empty
+        do {
+            if (get(i) == '.') {
+                result[currentArrayElementIndex++] = substring(byteStartPosition, i)
+                byteStartPosition = i + 1
+                if (currentArrayElementIndex == 3)
+                    break // there is no need to check string after third '.'
+                i++
+            }
+            i++
+        } while (true) // the cycle will be completed after finding the 3rd '.'
+        result[currentArrayElementIndex] = substring(byteStartPosition, length)
+
+        return result
+    }
 
     private fun Array<Array<Array<BooleanArray?>?>?>.saveByte(firstByteString: String): Array<Array<BooleanArray?>?> {
         val firstByte = firstByteString.toInt()
