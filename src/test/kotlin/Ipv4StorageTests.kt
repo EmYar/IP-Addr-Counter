@@ -1,10 +1,9 @@
-import me.emyar.IpsContainer
+import me.emyar.Ipv4Storage
 import org.junit.jupiter.api.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 
-@ExperimentalUnsignedTypes
-class IpPartTests {
+class Ipv4StorageTests {
     @Test
     fun emptyIpsTest() = abstractTest(
         emptyArray(),
@@ -14,20 +13,20 @@ class IpPartTests {
     @Test
     fun simpleTest() = abstractTest(
         arrayOf(
-            listOf(192, 168, 0, 1),
-            listOf(192, 168, 0, 1),
-            listOf(192, 168, 0, 2)
+            "192.168.0.1",
+            "192.168.0.1",
+            "192.168.0.2"
         ),
         arrayOf(
-            ubyteArrayOf(192u, 168u, 0u, 1u),
-            ubyteArrayOf(192u, 168u, 0u, 2u)
+            listOf(192, 168, 0, 1),
+            listOf(192, 168, 0, 2),
         )
     )
 
-    private fun abstractTest(testIps: Array<List<Int>>, expectedIps: Array<UByteArray>) {
-        val head = IpsContainer.createNew()
-        testIps.forEach(head::addIp)
-        val uniqueIps = head.getUniqueIps().toList()
+    private fun abstractTest(testIps: Array<String>, expectedIps: Array<List<Int>>) {
+        val storage = Ipv4Storage()
+        testIps.forEach(storage::saveIp)
+        val uniqueIps = storage.getAllUniqueIps().toList()
         assertEquals(expectedIps.size, uniqueIps.size, "The number of expected and generated unique IPs is not equal ")
         expectedIps.forEachIndexed { i, it ->
             assertContentEquals(it, uniqueIps[i])

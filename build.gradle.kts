@@ -28,5 +28,5 @@ tasks.withType<KotlinCompile> {
 
 application {
     mainClass.set("me.emyar.MainKt")
-    applicationDefaultJvmArgs = listOf("-Xmx12g")
+    applicationDefaultJvmArgs = listOf("-Xmx10g")
 }

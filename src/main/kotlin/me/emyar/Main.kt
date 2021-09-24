@@ -2,7 +2,6 @@ package me.emyar
 
 import java.nio.file.Paths
 
-@ExperimentalUnsignedTypes
 fun main(args: Array<String>) {
     val folderPathString = args.getOrElse(0) { "${System.getProperty("user.home")}/ip_addresses" }
     val inputFileName = args.getOrElse(1) { "ip_addresses" }
@@ -14,16 +13,12 @@ fun main(args: Array<String>) {
     assert(resultFile.createNewFile())
 
     resultFile.bufferedWriter().use { writer ->
-        val ipsContainer = IpsContainer.createNew()
+        val storage = Ipv4Storage()
 
-        folderPath.resolve(inputFileName).toFile().forEachLine {
-            ipsContainer.addIp(
-                it.split('.')
-                    .map(String::toInt)
-            )
-        }
+        folderPath.resolve(inputFileName).toFile()
+            .forEachLine(action = storage::saveIp)
 
-        ipsContainer.getUniqueIps()
+        storage.getAllUniqueIps()
             .forEach {
                 writer.write(it.joinToString("."))
                 writer.newLine()
