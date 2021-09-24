@@ -1,16 +1,22 @@
+package me.emyar
+
 import java.nio.file.Paths
 
 @ExperimentalUnsignedTypes
 fun main(args: Array<String>) {
-    val folderPath = Paths.get(System.getProperty("user.home"), args[0])
+    val folderPathString = args.getOrElse(0) { "${System.getProperty("user.home")}/ip_addresses" }
+    val inputFileName = args.getOrElse(1) { "ip_addresses" }
+    val outputFileName = args.getOrElse(2) { "ip_addresses_unique" }
 
-    val resultFile = folderPath.resolve(args[2]).toFile()
+    val folderPath = Paths.get(folderPathString)
+
+    val resultFile = folderPath.resolve(outputFileName).toFile()
     assert(resultFile.createNewFile())
 
     resultFile.bufferedWriter().use { writer ->
         val ipsContainer = IpsContainer.createNew()
 
-        folderPath.resolve(args[1]).toFile().forEachLine {
+        folderPath.resolve(inputFileName).toFile().forEachLine {
             ipsContainer.addIp(
                 it.split('.')
                     .map(String::toInt)

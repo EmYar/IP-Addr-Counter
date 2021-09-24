@@ -2,6 +2,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     kotlin("jvm") version "1.5.31"
+    application
 }
 
 group = "me.emyar"
@@ -13,6 +14,7 @@ repositories {
 
 dependencies {
     implementation(kotlin("stdlib"))
+
     testImplementation(kotlin("test"))
 }
 
@@ -22,4 +24,9 @@ tasks.test {
 
 tasks.withType<KotlinCompile> {
     kotlinOptions.jvmTarget = "16"
+}
+
+application {
+    mainClass.set("me.emyar.MainKt")
+    applicationDefaultJvmArgs = listOf("-Xmx12g")
 }
