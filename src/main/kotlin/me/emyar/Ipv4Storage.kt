@@ -6,13 +6,8 @@ class Ipv4Storage {
 
     private val storedIps = Array<Array<Array<BooleanArray?>?>?>(256) { null }
 
-    val uniqueCount: Long
-        get() {
-            var count = 0L
-            for (it in getAllUniqueIps())
-                count++
-            return count
-        }
+    private var _uniqueIpsCount = 0L
+    val uniqueIpsCount: Long get() = _uniqueIpsCount
 
     fun saveIp(ipString: String) {
         val ipBytesStrings = ipString.splitIp()
@@ -55,9 +50,9 @@ class Ipv4Storage {
                 byteStartPosition = i + 1
                 if (currentArrayElementIndex == 3)
                     break // there is no need to check string after third '.'
+                i += 2 // skip first digit after '.'
+            } else
                 i++
-            }
-            i++
         } while (true) // the cycle will be completed after finding the 3rd '.'
         result[currentArrayElementIndex] = substring(byteStartPosition, length)
 
@@ -92,6 +87,10 @@ class Ipv4Storage {
     }
 
     private inline fun BooleanArray.saveByte(fourthByteString: String) {
-        this[fourthByteString.toInt()] = true
+        val fourthByte = fourthByteString.toInt()
+        if (!this[fourthByte]) {
+            this[fourthByte] = true
+            _uniqueIpsCount++
+        }
     }
 }
