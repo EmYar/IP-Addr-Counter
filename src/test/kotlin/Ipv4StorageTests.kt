@@ -54,6 +54,6 @@ class Ipv4StorageTests {
     private fun abstractCountTest(testIps: Array<String>, expectedCount: Long) {
         val storage = Ipv4Storage()
         testIps.forEach(storage::saveIp)
-        assertEquals(expectedCount, storage.uniqueCount)
+        assertEquals(expectedCount, storage.uniqueIpsCount)
     }
 }

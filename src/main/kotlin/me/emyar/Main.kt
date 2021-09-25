@@ -10,5 +10,5 @@ fun main(args: Array<String>) {
     File(inputFileName)
         .forEachLine(action = storage::saveIp)
 
-    println(storage.uniqueCount)
+    println(storage.uniqueIpsCount)
 }
