@@ -1,8 +1,18 @@
+@file:Suppress("NOTHING_TO_INLINE")
+
 package me.emyar
 
 class Ipv4Storage {
 
     private val storedIps = Array<Array<Array<BooleanArray?>?>?>(256) { null }
+
+    val uniqueCount: Long
+        get() {
+            var count = 0L
+            for (it in getAllUniqueIps())
+                count++
+            return count
+        }
 
     fun saveIp(ipString: String) {
         val ipBytesStrings = ipString.splitIp()
@@ -33,7 +43,7 @@ class Ipv4Storage {
                     ?: emptySequence()
             }
 
-    private fun String.splitIp(): Array<String> {
+    private inline fun String.splitIp(): Array<String> {
         val result = Array(4) { "" }
         var currentArrayElementIndex = 0
         var byteStartPosition = 0
@@ -54,7 +64,7 @@ class Ipv4Storage {
         return result
     }
 
-    private fun Array<Array<Array<BooleanArray?>?>?>.saveByte(firstByteString: String): Array<Array<BooleanArray?>?> {
+    private inline fun Array<Array<Array<BooleanArray?>?>?>.saveByte(firstByteString: String): Array<Array<BooleanArray?>?> {
         val firstByte = firstByteString.toInt()
         return this[firstByte] ?: run {
             val newSecondByteArray = Array<Array<BooleanArray?>?>(256) { null }
@@ -63,7 +73,7 @@ class Ipv4Storage {
         }
     }
 
-    private fun Array<Array<BooleanArray?>?>.saveByte(secondByteString: String): Array<BooleanArray?> {
+    private inline fun Array<Array<BooleanArray?>?>.saveByte(secondByteString: String): Array<BooleanArray?> {
         val secondByte = secondByteString.toInt()
         return this[secondByte] ?: run {
             val newThirdByteArray = Array<BooleanArray?>(256) { null }
@@ -72,7 +82,7 @@ class Ipv4Storage {
         }
     }
 
-    private fun Array<BooleanArray?>.saveByte(thirdByteString: String): BooleanArray {
+    private inline fun Array<BooleanArray?>.saveByte(thirdByteString: String): BooleanArray {
         val thirdByte = thirdByteString.toInt()
         return this[thirdByte] ?: run {
             val newFourthByteArray = BooleanArray(256) { false }
@@ -81,7 +91,7 @@ class Ipv4Storage {
         }
     }
 
-    private fun BooleanArray.saveByte(fourthByteString: String) {
+    private inline fun BooleanArray.saveByte(fourthByteString: String) {
         this[fourthByteString.toInt()] = true
     }
 }

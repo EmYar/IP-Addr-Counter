@@ -4,14 +4,15 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 
 class Ipv4StorageTests {
+
     @Test
-    fun emptyIpsTest() = abstractTest(
+    fun emptyIpsListTest() = abstractListTest(
         emptyArray(),
         emptyArray()
     )
 
     @Test
-    fun simpleTest() = abstractTest(
+    fun uniqueIpsListTest() = abstractListTest(
         arrayOf(
             "192.168.0.1",
             "192.168.0.1",
@@ -23,7 +24,24 @@ class Ipv4StorageTests {
         )
     )
 
-    private fun abstractTest(testIps: Array<String>, expectedIps: Array<List<Int>>) {
+    @Test
+    fun emptyIpsCountTest() {
+        abstractCountTest(emptyArray(), 0)
+    }
+
+    @Test
+    fun uniqueIpsCountTest() {
+        abstractCountTest(
+            arrayOf(
+                "192.168.0.1",
+                "192.168.0.1",
+                "192.168.0.2"
+            ),
+            2
+        )
+    }
+
+    private fun abstractListTest(testIps: Array<String>, expectedIps: Array<List<Int>>) {
         val storage = Ipv4Storage()
         testIps.forEach(storage::saveIp)
         val uniqueIps = storage.getAllUniqueIps().toList()
@@ -31,5 +49,11 @@ class Ipv4StorageTests {
         expectedIps.forEachIndexed { i, it ->
             assertContentEquals(it, uniqueIps[i])
         }
+    }
+
+    private fun abstractCountTest(testIps: Array<String>, expectedCount: Long) {
+        val storage = Ipv4Storage()
+        testIps.forEach(storage::saveIp)
+        assertEquals(expectedCount, storage.uniqueCount)
     }
 }
