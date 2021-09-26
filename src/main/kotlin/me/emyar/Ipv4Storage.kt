@@ -1,43 +1,24 @@
-@file:Suppress("NOTHING_TO_INLINE")
-
 package me.emyar
+
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.atomic.AtomicLong
 
 class Ipv4Storage {
 
-    private val storedIps = Array<Array<Array<BooleanArray?>?>?>(256) { null }
+    private val _uniqueIpsCount = AtomicLong(0)
+    val uniqueIpsCount: Long get() = _uniqueIpsCount.get()
 
-    private var _uniqueIpsCount = 0L
-    val uniqueIpsCount: Long get() = _uniqueIpsCount
+    private val newIpsCounter: () -> Unit = { _uniqueIpsCount.incrementAndGet() }
 
-    fun saveIp(ipString: String) {
+    private val secondBytes = Array(256) { IpBytesArray(1, newIpsCounter) }
+
+    suspend fun saveIp(ipString: String) {
         val ipBytesStrings = ipString.splitIp()
-        storedIps.saveByte(ipBytesStrings[0])
-            .saveByte(ipBytesStrings[1])
-            .saveByte(ipBytesStrings[2])
-            .saveByte(ipBytesStrings[3])
+        secondBytes[ipBytesStrings[0].toInt()].saveIp(ipBytesStrings)
     }
 
-    fun getAllUniqueIps(): Sequence<List<Int>> =
-        storedIps.asSequence()
-            .flatMapIndexed { firstByte, secondByteArray ->
-                secondByteArray?.asSequence()
-                    ?.flatMapIndexed { secondByte, thirdByteArray ->
-                        thirdByteArray?.asSequence()
-                            ?.flatMapIndexed { thirdByte, fourthByteArray ->
-                                fourthByteArray?.asSequence()
-                                    ?.mapIndexedNotNull { fourthByte, isExists ->
-                                        if (isExists)
-                                            listOf(firstByte, secondByte, thirdByte, fourthByte)
-                                        else
-                                            null
-                                    }
-                                    ?: emptySequence()
-                            }
-                            ?: emptySequence()
-                    }
-                    ?: emptySequence()
-            }
-
+    @Suppress("NOTHING_TO_INLINE")
     private inline fun String.splitIp(): Array<String> {
         val result = Array(4) { "" }
         var currentArrayElementIndex = 0
@@ -58,39 +39,52 @@ class Ipv4Storage {
 
         return result
     }
+}
 
-    private inline fun Array<Array<Array<BooleanArray?>?>?>.saveByte(firstByteString: String): Array<Array<BooleanArray?>?> {
-        val firstByte = firstByteString.toInt()
-        return this[firstByte] ?: run {
-            val newSecondByteArray = Array<Array<BooleanArray?>?>(256) { null }
-            this[firstByte] = newSecondByteArray
-            newSecondByteArray
-        }
+private sealed class IpBytesArrayAbstract(protected val newIpsCounter: () -> Unit) {
+
+    protected val mutex = Mutex()
+
+    companion object {
+        fun createNew(byteNumber: Int, newIpsCounter: () -> Unit) =
+            when (byteNumber) {
+                3 -> FourthIpBytesArray(newIpsCounter)
+                else -> IpBytesArray(byteNumber, newIpsCounter)
+            }
     }
 
-    private inline fun Array<Array<BooleanArray?>?>.saveByte(secondByteString: String): Array<BooleanArray?> {
-        val secondByte = secondByteString.toInt()
-        return this[secondByte] ?: run {
-            val newThirdByteArray = Array<BooleanArray?>(256) { null }
-            this[secondByte] = newThirdByteArray
-            newThirdByteArray
-        }
-    }
+    abstract suspend fun saveIp(ipBytesStrings: Array<String>)
+}
 
-    private inline fun Array<BooleanArray?>.saveByte(thirdByteString: String): BooleanArray {
-        val thirdByte = thirdByteString.toInt()
-        return this[thirdByte] ?: run {
-            val newFourthByteArray = BooleanArray(256) { false }
-            this[thirdByte] = newFourthByteArray
-            newFourthByteArray
-        }
-    }
+private class IpBytesArray(private val ipByteNumber: Int, newIpsCounter: () -> Unit) :
+    IpBytesArrayAbstract(newIpsCounter) {
 
-    private inline fun BooleanArray.saveByte(fourthByteString: String) {
-        val fourthByte = fourthByteString.toInt()
-        if (!this[fourthByte]) {
-            this[fourthByte] = true
-            _uniqueIpsCount++
+    private val nextIpBytesReferences = Array<IpBytesArrayAbstract?>(256) { null }
+
+    override suspend fun saveIp(ipBytesStrings: Array<String>) {
+        val ipByte = ipBytesStrings[ipByteNumber].toInt()
+        val nextIpBytesArray = mutex.withLock {
+            nextIpBytesReferences[ipByte] ?: run {
+                val newNextIpsBytesArray = createNew(ipByteNumber + 1, newIpsCounter)
+                nextIpBytesReferences[ipByte] = newNextIpsBytesArray
+                newNextIpsBytesArray
+            }
+        }
+        nextIpBytesArray.saveIp(ipBytesStrings)
+    }
+}
+
+private class FourthIpBytesArray(newIpsCounter: () -> Unit) : IpBytesArrayAbstract(newIpsCounter) {
+
+    private val fourthIpBytesArray = BooleanArray(256) { false }
+
+    override suspend fun saveIp(ipBytesStrings: Array<String>) {
+        val ipByte = ipBytesStrings[3].toInt()
+        mutex.withLock {
+            if (!fourthIpBytesArray[ipByte]) {
+                fourthIpBytesArray[ipByte] = true
+                newIpsCounter()
+            }
         }
     }
 }

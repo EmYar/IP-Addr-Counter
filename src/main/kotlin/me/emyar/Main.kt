@@ -1,47 +1,62 @@
 package me.emyar
 
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.io.File
-import kotlin.concurrent.thread
+import java.util.concurrent.Executors.newFixedThreadPool
 
-private const val readedIpsArraysSize = 4096
+private val defaultInputFilePath = "${System.getProperty("user.home")}/IP-Addr-Counter/ip_addresses"
+private const val defaultThreadsCount = 6
+
+private const val ipsBuffer = 4096
+private const val arraysInBufferPerWorker = 10
 
 fun main(args: Array<String>) = runBlocking {
-    val inputFileName = args.getOrElse(0) { "${System.getProperty("user.home")}/IP-Addr-Counter/ip_addresses" }
+    val inputFilePath = args.getOrElse(0) { defaultInputFilePath }
+    val threadsCount = args.getOrNull(1)?.toInt() ?: defaultThreadsCount
 
     val storage = Ipv4Storage()
 
-    val channel = Channel<Array<String?>>()
+    val channel = Channel<Array<String?>>(threadsCount * arraysInBufferPerWorker)
 
-    thread {
-        runBlocking {
-            File(inputFileName).bufferedReader().use { reader ->
-                var array = Array<String?>(readedIpsArraysSize) { null }
-                var i = 0
-                reader.lineSequence()
-                    .forEach {
-                        array[i++] = it
-                        if (i == array.size) {
-                            channel.send(array)
-                            array = Array(readedIpsArraysSize) { null }
-                            i = 0
-                        }
+    val coroutineDispatcher = newFixedThreadPool(threadsCount).asCoroutineDispatcher()
+
+    launch(coroutineDispatcher) {
+        File(inputFilePath).bufferedReader().use { reader ->
+            var array = Array<String?>(ipsBuffer) { null }
+            var i = 0
+            reader.lineSequence()
+                .forEach {
+                    array[i++] = it
+                    if (i == array.size) {
+                        channel.send(array)
+                        array = Array(ipsBuffer) { null }
+                        i = 0
                     }
-            }
-            channel.close()
+                }
+        }
+        channel.close()
+    }
+
+    val workersJobsList = mutableListOf<Job>()
+    repeat(threadsCount - 1) { // one thread is for file reader
+        workersJobsList += launch(coroutineDispatcher) {
+            for (array in channel)
+                for (ip in array) {
+                    if (ip == null)
+                        break
+                    storage.saveIp(ip)
+                }
         }
     }
 
-    runBlocking {
-        for (array in channel) {
-            for (ip in array) {
-                if (ip == null)
-                    break
-                storage.saveIp(ip)
-            }
-        }
-    }
+    for (job in workersJobsList)
+        job.join()
 
     println(storage.uniqueIpsCount)
+
+    coroutineDispatcher.close()
 }
