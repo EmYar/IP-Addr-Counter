@@ -22,41 +22,39 @@ fun main(args: Array<String>) = runBlocking {
 
     val channel = Channel<Array<String?>>(threadsCount * arraysInBufferPerWorker)
 
-    val coroutineDispatcher = newFixedThreadPool(threadsCount).asCoroutineDispatcher()
-
-    launch(coroutineDispatcher) {
-        File(inputFilePath).bufferedReader().use { reader ->
-            var array = Array<String?>(ipsBuffer) { null }
-            var i = 0
-            reader.lineSequence()
-                .forEach {
-                    array[i++] = it
-                    if (i == array.size) {
-                        channel.send(array)
-                        array = Array(ipsBuffer) { null }
-                        i = 0
+    newFixedThreadPool(threadsCount).asCoroutineDispatcher().use { coroutineDispatcher ->
+        launch(coroutineDispatcher) {
+            File(inputFilePath).bufferedReader().use { reader ->
+                var array = Array<String?>(ipsBuffer) { null }
+                var i = 0
+                reader.lineSequence()
+                    .forEach {
+                        array[i++] = it
+                        if (i == array.size) {
+                            channel.send(array)
+                            array = Array(ipsBuffer) { null }
+                            i = 0
+                        }
                     }
-                }
+            }
+            channel.close()
         }
-        channel.close()
-    }
 
-    val workersJobsList = mutableListOf<Job>()
-    repeat(threadsCount - 1) { // one thread is for file reader
-        workersJobsList += launch(coroutineDispatcher) {
-            for (array in channel)
-                for (ip in array) {
-                    if (ip == null)
-                        break
-                    storage.saveIp(ip)
-                }
+        val workersJobsList = mutableListOf<Job>()
+        repeat(threadsCount - 1) { // one thread is for file reader
+            workersJobsList += launch(coroutineDispatcher) {
+                for (array in channel)
+                    for (ip in array) {
+                        if (ip == null)
+                            break
+                        storage.saveIp(ip)
+                    }
+            }
         }
+
+        for (job in workersJobsList)
+            job.join()
+
+        println(storage.getUniqueIpsCount(coroutineDispatcher))
     }
-
-    for (job in workersJobsList)
-        job.join()
-
-    println(storage.uniqueIpsCount)
-
-    coroutineDispatcher.close()
 }
