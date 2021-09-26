@@ -1,37 +1,22 @@
 package me.emyar
 
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.util.*
 import java.util.concurrent.atomic.AtomicLong
-import kotlin.coroutines.CoroutineContext
-import kotlin.coroutines.EmptyCoroutineContext
 
 class Ipv4Storage {
 
-    private val secondBytes = Array(256) { IpBytesArray(1) }
+    private val counter: () -> Unit = { _uniqueIpsCount.getAndIncrement() }
+
+    private val secondBytes = Array(256) { IpBytesArray(1, counter) }
+
+    private val _uniqueIpsCount = AtomicLong(0)
+    val uniqueIpsCount: Long get() = _uniqueIpsCount.get()
 
     suspend fun saveIp(ipString: String) {
         val ipBytesStrings = ipString.splitIp()
         secondBytes[ipBytesStrings[0].toInt()].saveIp(ipBytesStrings)
-    }
-
-    fun getUniqueIpsCount(coroutineDispatcher: CoroutineContext = EmptyCoroutineContext): Long = runBlocking {
-        val result = AtomicLong(0)
-        val jobsList = Array<Job?>(256) { null }
-        secondBytes.forEachIndexed { i, secondBytesArray ->
-            jobsList[i] = launch(coroutineDispatcher) {
-                var currentArraySum = 0L
-                secondBytesArray.getCountingSequence()
-                    .forEach { _ -> currentArraySum++ }
-                if (currentArraySum > 0) // avoids unnecessary usages of atomic var
-                    result.addAndGet(currentArraySum)
-            }
-        }
-        jobsList.forEach { it?.join() }
-        result.get()
     }
 
     @Suppress("NOTHING_TO_INLINE")
@@ -57,53 +42,50 @@ class Ipv4Storage {
     }
 }
 
-private sealed class IpBytesArrayAbstract {
+private sealed class IpBytesArrayAbstract(protected val counter: () -> Unit) {
 
     companion object {
-        fun createNew(byteNumber: Int) =
+        fun createNew(byteNumber: Int, counter: () -> Unit) =
             when (byteNumber) {
-                3 -> FourthIpBytesArray()
-                else -> IpBytesArray(byteNumber)
+                3 -> FourthIpBytesArray(counter)
+                else -> IpBytesArray(byteNumber, counter)
             }
     }
 
+    protected val mutex = Mutex()
+
     abstract suspend fun saveIp(ipBytesStrings: Array<String>)
-    abstract fun getCountingSequence(): Sequence<Any>
 }
 
-private class IpBytesArray(private val ipByteNumber: Int) : IpBytesArrayAbstract() {
+private class IpBytesArray(private val ipByteNumber: Int, counter: () -> Unit) : IpBytesArrayAbstract(counter) {
 
     private val nextIpBytesReferences = Array<IpBytesArrayAbstract?>(256) { null }
-    private val mutex = Mutex()
 
     override suspend fun saveIp(ipBytesStrings: Array<String>) {
         val ipByte = ipBytesStrings[ipByteNumber].toInt()
-        val nextIpBytesArray = mutex.withLock {
+        val nextIpBytesArray = nextIpBytesReferences[ipByte] ?: mutex.withLock {
             nextIpBytesReferences[ipByte] ?: run {
-                val newNextIpsBytesArray = createNew(ipByteNumber + 1)
+                val newNextIpsBytesArray = createNew(ipByteNumber + 1, counter)
                 nextIpBytesReferences[ipByte] = newNextIpsBytesArray
                 newNextIpsBytesArray
             }
         }
         nextIpBytesArray.saveIp(ipBytesStrings)
     }
-
-    override fun getCountingSequence(): Sequence<Any> =
-        nextIpBytesReferences.asSequence()
-            .filterNotNull()
-            .flatMap(IpBytesArrayAbstract::getCountingSequence)
 }
 
-private class FourthIpBytesArray : IpBytesArrayAbstract() {
+private class FourthIpBytesArray(counter: () -> Unit) : IpBytesArrayAbstract(counter) {
 
-    private val fourthIpBytesArray = BooleanArray(256) { false }
+    private val fourthIpBytesStorage = BitSet(256)
 
     override suspend fun saveIp(ipBytesStrings: Array<String>) {
         val ipByte = ipBytesStrings[3].toInt()
-        fourthIpBytesArray[ipByte] = true
+        if (!fourthIpBytesStorage[ipByte])
+            mutex.withLock {
+                if (!fourthIpBytesStorage[ipByte]) {
+                    fourthIpBytesStorage[ipByte] = true
+                    counter()
+                }
+            }
     }
-
-    override fun getCountingSequence(): Sequence<Any> =
-        fourthIpBytesArray.asSequence()
-            .filter { it }
 }

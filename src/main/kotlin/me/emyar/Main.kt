@@ -9,7 +9,7 @@ import java.io.File
 import java.util.concurrent.Executors.newFixedThreadPool
 
 private val defaultInputFilePath = "${System.getProperty("user.home")}/IP-Addr-Counter/ip_addresses"
-private const val defaultThreadsCount = 6
+private const val defaultThreadsCount = 5
 
 private const val ipsBuffer = 4096
 private const val arraysInBufferPerWorker = 10
@@ -55,6 +55,6 @@ fun main(args: Array<String>) = runBlocking {
         for (job in workersJobsList)
             job.join()
 
-        println(storage.getUniqueIpsCount(coroutineDispatcher))
+        println(storage.uniqueIpsCount)
     }
 }
